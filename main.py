@@ -14,6 +14,8 @@ def main():
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
     parser.add_argument("user_prompt", help="Your prompt to GenAi")
 
+    
+
     args = parser.parse_args()
 
     if not args: 
@@ -34,11 +36,101 @@ def main():
     generate_content(client, messages, verbose)
 
 def generate_content(client, messages, verbose):
+    system_prompt = """
+You are a helpful AI coding agent.
+
+When a user asks a question or makes a request, make a function call plan. You can perform the following operations:
+
+- List files and directories
+- Read file contents
+- Execute Python files with optional arguments
+- Write or Overwrite files
+
+All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
+"""
+
+    schema_get_files_info = types.FunctionDeclaration(
+    name="get_files_info",
+    description="Lists files in the specified directory along with their sizes, constrained to the working directory.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "directory": types.Schema(
+                type=types.Type.STRING,
+                description="The directory to list files from, relative to the working directory. If not provided, lists files in the working directory itself.",
+                ),
+            },
+        ),
+    )
+
+    schema_get_file_content = types.FunctionDeclaration(
+    name="get_file_content",
+    description="Reads the contents of a file and returns a string, constrained to the working directory.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "file_path": types.Schema(
+                type=types.Type.STRING,
+                description="The file_path of the file to read content from, within the working directory.",
+                ),
+            },
+        ),
+    )
+
+    schema_run_python_file = types.FunctionDeclaration(
+    name="run_python_file",
+    description="Executes the selected python file with optional arguments, returns the STDOUT and STDERR, constrained to the working directory.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "file_path": types.Schema(
+                type=types.Type.STRING,
+                description="The file_path of the file to execute, within the working directory.",
+                ),
+            },
+        ),
+    )
+
+    schema_write_file= types.FunctionDeclaration(
+    name="write_file",
+    description="Write or Overrite a file with the provided contents, constrained to the working directory.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "file_path": types.Schema(
+                type=types.Type.STRING,
+                description="The file_path of the file to write, within the working directory.",
+                ),
+            "content": types.Schema(
+                type=types.Type.STRING,
+                description="The content that will be written to the file, within the working directory.",
+                ),
+            },
+        ),
+    )
+    
+    available_functions = types.Tool(
+    function_declarations=[
+        schema_get_files_info,
+        schema_get_file_content,
+        schema_run_python_file,
+        schema_write_file,
+    ]
+    )
+    
     response = client.models.generate_content(
         model='gemini-2.0-flash-001', 
         contents=messages,
+        config=types.GenerateContentConfig(
+            tools=[available_functions],
+            system_instruction=system_prompt),
     )
-    print(response.text)
+    
+    if response.function_calls != None:
+        for call in response.function_calls:
+            print(f"Calling function: {call.name}({call.args})")
+    else:
+        print(response.text)  
 
     if verbose:
         prompt_tokens = response.usage_metadata.prompt_token_count
