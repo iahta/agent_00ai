@@ -19,7 +19,7 @@ def get_files_info(working_directory, directory=None):
             file_list.append(
                 f"- {filename}: file_size={file_size} bytes, is_dir={is_dir}"
             )
-            return "\n".join(file_list)
+        return "\n".join(file_list)
     except Exception as e:
         return f"Error listing files: {e}"
 

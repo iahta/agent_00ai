@@ -4,6 +4,7 @@ import argparse
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+import call_function
 
 
 def main():
@@ -125,18 +126,24 @@ All paths you provide should be relative to the working directory. You do not ne
             tools=[available_functions],
             system_instruction=system_prompt),
     )
-    
-    if response.function_calls != None:
-        for call in response.function_calls:
-            print(f"Calling function: {call.name}({call.args})")
-    else:
-        print(response.text)  
 
     if verbose:
         prompt_tokens = response.usage_metadata.prompt_token_count
         response_tokens = response.usage_metadata.candidates_token_count
         print(f"Prompt tokens: {prompt_tokens}")
         print(f"Response tokens: {response_tokens}") 
+    
+    if not response.function_calls:
+        return response.text 
+    
+    for call in response.function_calls:
+        call_response = call_function.call_function(call, verbose)
+        if not call_response.parts[0].function_response.response:
+            raise Exception("Missing Function Response")
+        if verbose:
+            print(f"-> {call_response.parts[0].function_response.response}")
+
+        
 
 if __name__ == "__main__":
     main()
